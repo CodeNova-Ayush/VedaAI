@@ -1,10 +1,11 @@
 # Render Blueprint for VedaAI backend.
-# Defines two services that share the same Docker image:
-#   - veda-ai-api    : Express + Socket.io HTTP server
-#   - veda-ai-worker : BullMQ worker (separate process)
 #
-# Set MONGODB_URI, REDIS_URL, ANTHROPIC_API_KEY, FRONTEND_URL in the
-# Render dashboard after the Blueprint creates these services.
+# Single free Web Service that runs both the Express API and the BullMQ
+# worker inside the same container (Render Background Workers require a
+# paid plan, so we co-locate them via `concurrently`).
+#
+# Set MONGODB_URI, REDIS_URL, ANTHROPIC_API_KEY, and FRONTEND_URL in the
+# Render dashboard (or when prompted by the Blueprint sync).
 
 services:
   - type: web
@@ -28,23 +29,4 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: FRONTEND_URL
-        sync: false
-
-  - type: worker
-    name: veda-ai-worker
-    runtime: docker
-    plan: free
-    region: oregon
-    rootDir: .
-    dockerfilePath: backend/Dockerfile
-    dockerContext: .
-    dockerCommand: node backend/dist/backend/src/worker.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: MONGODB_URI
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: ANTHROPIC_API_KEY
         sync: false
