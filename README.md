@@ -468,7 +468,45 @@ When `ANTHROPIC_API_KEY` is unset, the worker uses a deterministic offline gener
 
 5. Trigger a deploy. Once green, the live URL is your `FRONTEND_URL` for the backend.
 
-### Backend → Railway
+### Backend → Render (recommended, free, no card required)
+
+The repo ships a Render Blueprint at `render.yaml` that defines both the API and worker services. Both share the same Docker image built from `backend/Dockerfile`.
+
+1. **Create managed data stores** (free tiers):
+   - **MongoDB Atlas** → free M0 cluster → user → "Allow access from anywhere" → copy the `mongodb+srv://...` URI.
+   - **Upstash Redis** → free Global database → copy the `rediss://...` URL (TLS, works out of the box).
+
+2. **Deploy the Blueprint**:
+   - Push the repo to GitHub (already done if you're following along).
+   - Go to https://dashboard.render.com → **New +** → **Blueprint** → connect this repo.
+   - Render reads `render.yaml` and creates **`veda-ai-api`** (Web Service) and **`veda-ai-worker`** (Background Worker).
+
+3. **Fill in the secrets** when Render prompts:
+
+   | Variable | Value |
+   |---|---|
+   | `MONGODB_URI` | Your Atlas SRV URI |
+   | `REDIS_URL` | Your Upstash URL |
+   | `ANTHROPIC_API_KEY` | Your Anthropic key (or leave blank — falls back to offline generator) |
+   | `FRONTEND_URL` | `https://<your-vercel-domain>.vercel.app` (only on the API service) |
+
+4. Click **Apply**. Render builds the Docker image (the same one used for both services), then starts the API and the worker. The API exposes a public `https://veda-ai-api.onrender.com` URL.
+
+5. **Smoke test**:
+   ```bash
+   curl https://veda-ai-api.onrender.com/health
+   # → { "success": true, "data": { "ok": true } }
+   ```
+
+6. **Update Vercel**: in the frontend project Settings → Environment Variables, set
+   - `NEXT_PUBLIC_API_URL = https://veda-ai-api.onrender.com`
+   - `NEXT_PUBLIC_SOCKET_URL = https://veda-ai-api.onrender.com`
+
+   Then **redeploy** (Vercel → Deployments → ⋯ → Redeploy, uncheck cache). `NEXT_PUBLIC_*` is baked at build time, so a redeploy is required.
+
+7. Done. Open your Vercel URL and create an assignment.
+
+### Backend → Railway (alternative)
 
 Railway needs to build the **whole monorepo** (so the `@veda-ai/shared` workspace resolves) and run only the backend. The repo ships:
 
