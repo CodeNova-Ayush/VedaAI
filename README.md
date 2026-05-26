@@ -468,82 +468,59 @@ When `ANTHROPIC_API_KEY` is unset, the worker uses a deterministic offline gener
 
 5. Trigger a deploy. Once green, the live URL is your `FRONTEND_URL` for the backend.
 
-### Backend → Render (recommended, free, no card required)
+### Backend → Railway (recommended — bundled Mongo + Redis, ~5 min)
 
-The repo ships a Render Blueprint at `render.yaml` that defines both the API and worker services. Both share the same Docker image built from `backend/Dockerfile`.
+Railway runs Docker containers, supports persistent processes, and ships **MongoDB** and **Redis** as one-click add-ons. The repo includes `backend/Dockerfile` and `railway.json`, which together:
 
-1. **Create managed data stores** (free tiers):
-   - **MongoDB Atlas** → free M0 cluster → user → "Allow access from anywhere" → copy the `mongodb+srv://...` URI.
-   - **Upstash Redis** → free Global database → copy the `rediss://...` URL (TLS, works out of the box).
+- Build the whole monorepo so the `@veda-ai/shared` workspace resolves.
+- Run the **API and BullMQ worker side-by-side** in one container via `start-all.js`. Free tier covers this — no need for two paid services.
 
-2. **Deploy the Blueprint**:
-   - Push the repo to GitHub (already done if you're following along).
-   - Go to https://dashboard.render.com → **New +** → **Blueprint** → connect this repo.
-   - Render reads `render.yaml` and creates **`veda-ai-api`** (Web Service) and **`veda-ai-worker`** (Background Worker).
+#### Steps
 
-3. **Fill in the secrets** when Render prompts:
+1. Sign in at https://railway.app with your GitHub account.
+2. **New Project** → **Deploy from GitHub repo** → select **CodeNova-Ayush/VedaAI**.
+3. Inside the project, click **+ New** twice to add the data stores:
+   - **+ New** → **Database** → **Add MongoDB**.
+   - **+ New** → **Database** → **Add Redis**.
+4. Open your **backend service** → **Variables** tab. Click **+ New Variable** four times:
 
-   | Variable | Value |
-   |---|---|
-   | `MONGODB_URI` | Your Atlas SRV URI |
-   | `REDIS_URL` | Your Upstash URL |
-   | `ANTHROPIC_API_KEY` | Your Anthropic key (or leave blank — falls back to offline generator) |
-   | `FRONTEND_URL` | `https://<your-vercel-domain>.vercel.app` (only on the API service) |
+   | Key | Value | Notes |
+   |---|---|---|
+   | `MONGODB_URI` | `${{ MongoDB.MONGO_URL }}` | Reference the Mongo plug-in. Type the `${{ … }}` literally — Railway resolves it. |
+   | `REDIS_URL` | `${{ Redis.REDIS_URL }}` | Same trick for Redis. |
+   | `FRONTEND_URL` | `https://<your-vercel-domain>.vercel.app` | Your Vercel deployment URL |
+   | `ANTHROPIC_API_KEY` | (optional) | Leave blank to use the deterministic offline generator |
 
-4. Click **Apply**. Render builds the Docker image (the same one used for both services), then starts the API and the worker. The API exposes a public `https://veda-ai-api.onrender.com` URL.
+5. Open **Settings** on the backend service → confirm:
+   - **Builder**: Dockerfile (auto-detected from `railway.json`)
+   - **Dockerfile Path**: `backend/Dockerfile`
+   - **Root Directory**: empty (do **not** set it to `backend/`)
+   - **Start Command**: `node backend/dist/backend/src/start-all.js` (already in `railway.json`)
+   - **Healthcheck Path**: `/health`
+6. Click **Deploy**. Build takes ~3-4 minutes.
+7. Once green, copy the public URL Railway gives you (e.g. `https://veda-ai-production.up.railway.app`).
 
-5. **Smoke test**:
-   ```bash
-   curl https://veda-ai-api.onrender.com/health
-   # → { "success": true, "data": { "ok": true } }
-   ```
-
-6. **Update Vercel**: in the frontend project Settings → Environment Variables, set
-   - `NEXT_PUBLIC_API_URL = https://veda-ai-api.onrender.com`
-   - `NEXT_PUBLIC_SOCKET_URL = https://veda-ai-api.onrender.com`
-
-   Then **redeploy** (Vercel → Deployments → ⋯ → Redeploy, uncheck cache). `NEXT_PUBLIC_*` is baked at build time, so a redeploy is required.
-
-7. Done. Open your Vercel URL and create an assignment.
-
-### Backend → Railway (alternative)
-
-Railway needs to build the **whole monorepo** (so the `@veda-ai/shared` workspace resolves) and run only the backend. The repo ships:
-
-- `backend/Dockerfile` — multi-stage Docker build that installs all workspaces, builds the backend, and produces a slim runtime image.
-- `railway.json` — tells Railway to use that Dockerfile from the repo root.
-
-Steps:
-
-1. Create a **new Railway project** and connect this GitHub repo.
-2. Add Railway plug-ins (or external) for **MongoDB** and **Redis**, or paste your own `MONGODB_URI` and `REDIS_URL`.
-3. Configure the **API service**:
-   - Build: Dockerfile (auto-detected from `railway.json`).
-   - Start command (already set in `railway.json`): `node backend/dist/backend/src/index.js`.
-   - Environment variables:
-
-     | Key | Value |
-     |---|---|
-     | `MONGODB_URI` | Your Mongo connection string |
-     | `REDIS_URL` | Your Redis URL |
-     | `ANTHROPIC_API_KEY` | Anthropic key (optional) |
-     | `PORT` | `4000` |
-     | `FRONTEND_URL` | Your Vercel URL |
-
-4. **Duplicate the service** to create the **Worker service** from the same image. Override the start command to `node backend/dist/backend/src/worker.js`. Both services share the same env vars.
-
-This gives you the same API + Worker split that runs locally under `concurrently`.
-
-### Smoke test
-
-After deploy, hit:
+#### Smoke test
 
 ```bash
 curl https://<your-railway-host>/health
 # → { "success": true, "data": { "ok": true } }
 ```
 
-Then open your Vercel URL — the assignments list should load (empty state if you've not seeded yet).
+#### Hook the frontend to the backend
+
+Back on Vercel → frontend project → **Settings → Environment Variables**:
+
+```
+NEXT_PUBLIC_API_URL    = https://<your-railway-host>
+NEXT_PUBLIC_SOCKET_URL = https://<your-railway-host>
+```
+
+Then **Redeploy** the frontend (Deployments → ⋯ → Redeploy → uncheck cache). `NEXT_PUBLIC_*` is baked at build time, so a redeploy is required.
+
+### Backend → Render (alternative, free, requires external Atlas + Upstash)
+
+The repo also ships a `render.yaml` Blueprint. Use this if you don't want to put a card on file with Railway. You'll need to provision **MongoDB Atlas** and **Upstash Redis** yourself, then paste their URIs into Render's environment variables. The same `start-all.js` bootstrap runs both API and worker in one free Render Web Service.
 
 ## Screenshots
 
