@@ -1,0 +1,14 @@
+import IORedis, { Redis } from 'ioredis';
+
+let client: Redis | null = null;
+
+export function getRedis(): Redis {
+  if (client) return client;
+  const url = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
+  client = new IORedis(url, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+  client.on('error', (err) => console.error('[redis] error', err.message));
+  return client;
+}

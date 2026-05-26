@@ -1,0 +1,24 @@
+{
+  "name": "@veda-ai/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VedaAI shared TypeScript types (no runtime code)",
+  "main": "types/index.ts",
+  "types": "types/index.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.ts",
+      "default": "./types/index.ts"
+    },
+    "./types": {
+      "types": "./types/index.ts",
+      "default": "./types/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  }
+}
