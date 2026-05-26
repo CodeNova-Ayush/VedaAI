@@ -12,6 +12,10 @@ out/
 *.tsbuildinfo
 **/*.tsbuildinfo
 
+# accidental js next to ts (shared types are .ts only)
+shared/types/*.js
+shared/types/*.js.map
+
 # env files
 .env
 .env.*

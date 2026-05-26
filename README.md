@@ -454,36 +454,58 @@ When `ANTHROPIC_API_KEY` is unset, the worker uses a deterministic offline gener
 
 ### Frontend → Vercel
 
-1. Import the repository in Vercel.
-2. Set **Root Directory** to `frontend`.
-3. Set **Build Command** to `npm run build` and **Install Command** to `npm install` *(at the repo root, not inside `frontend`, so workspace deps resolve)*.
+1. **Import** the GitHub repo in Vercel.
+2. Leave the **Root Directory** as the repo root (do **not** set it to `frontend`). The included `vercel.json` overrides the build to compile only the frontend workspace.
+3. **Framework Preset** auto-detects as Next.js. The build/install/output commands come from `vercel.json`.
 4. Configure environment variables:
 
    | Key | Value |
    |---|---|
-   | `NEXT_PUBLIC_API_URL` | Your Railway backend URL (e.g. `https://veda-ai-api.up.railway.app`) |
+   | `NEXT_PUBLIC_API_URL` | Your Railway backend URL, e.g. `https://veda-ai-api.up.railway.app` |
    | `NEXT_PUBLIC_SOCKET_URL` | Same as `NEXT_PUBLIC_API_URL` |
+
+   Add them for **all environments** (Production, Preview, Development) before triggering a build, since `NEXT_PUBLIC_*` values are baked in at build time.
+
+5. Trigger a deploy. Once green, the live URL is your `FRONTEND_URL` for the backend.
 
 ### Backend → Railway
 
-1. Create a new project from the GitHub repo and set the **root directory** to `backend`.
-2. Add Railway add-ons for **MongoDB** and **Redis**, or paste your own connection strings.
-3. Configure environment variables:
+Railway needs to build the **whole monorepo** (so the `@veda-ai/shared` workspace resolves) and run only the backend. The repo ships:
 
-   | Key | Value |
-   |---|---|
-   | `MONGODB_URI` | Mongo connection string |
-   | `REDIS_URL` | Redis connection URL |
-   | `ANTHROPIC_API_KEY` | Anthropic key |
-   | `PORT` | `4000` |
-   | `FRONTEND_URL` | Your Vercel URL |
+- `backend/Dockerfile` — multi-stage Docker build that installs all workspaces, builds the backend, and produces a slim runtime image.
+- `railway.json` — tells Railway to use that Dockerfile from the repo root.
 
-4. Define **two services** in Railway from the same backend code:
+Steps:
 
-   - **API** with `Start Command` set to `npm run start` (after `npm run build`)
-   - **Worker** with `Start Command` set to `npm run start:worker`
+1. Create a **new Railway project** and connect this GitHub repo.
+2. Add Railway plug-ins (or external) for **MongoDB** and **Redis**, or paste your own `MONGODB_URI` and `REDIS_URL`.
+3. Configure the **API service**:
+   - Build: Dockerfile (auto-detected from `railway.json`).
+   - Start command (already set in `railway.json`): `node backend/dist/backend/src/index.js`.
+   - Environment variables:
 
-   This mirrors the local split where the BullMQ worker runs as its own process.
+     | Key | Value |
+     |---|---|
+     | `MONGODB_URI` | Your Mongo connection string |
+     | `REDIS_URL` | Your Redis URL |
+     | `ANTHROPIC_API_KEY` | Anthropic key (optional) |
+     | `PORT` | `4000` |
+     | `FRONTEND_URL` | Your Vercel URL |
+
+4. **Duplicate the service** to create the **Worker service** from the same image. Override the start command to `node backend/dist/backend/src/worker.js`. Both services share the same env vars.
+
+This gives you the same API + Worker split that runs locally under `concurrently`.
+
+### Smoke test
+
+After deploy, hit:
+
+```bash
+curl https://<your-railway-host>/health
+# → { "success": true, "data": { "ok": true } }
+```
+
+Then open your Vercel URL — the assignments list should load (empty state if you've not seeded yet).
 
 ## Screenshots
 

@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build --workspace @veda-ai/frontend",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": "frontend/.next"
+}
