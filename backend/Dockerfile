@@ -2,21 +2,20 @@
 #
 # Multi-stage Dockerfile for the VedaAI backend.
 # Build context: the MONOREPO ROOT (so the @veda-ai/shared workspace resolves).
-# By default it runs API + Worker together via `concurrently`. Override the
-# CMD on a separate service to run just one if you have a paid plan.
+# Runs the API and BullMQ worker side-by-side via a tiny Node bootstrap so the
+# whole thing fits in a single Render free-tier Web Service.
 
 # ───────────────────────── deps ─────────────────────────
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Copy lockfile + every workspace manifest so the install layer caches well.
 COPY package.json package-lock.json ./
 COPY shared/package.json ./shared/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 
-# Install all workspace deps. Small monorepo so we accept full install.
-RUN npm ci
+# Install everything (including devDeps so tsc works in the build stage)
+RUN npm ci --no-audit --no-fund
 
 # ───────────────────────── build ────────────────────────
 FROM node:20-alpine AS builder
@@ -34,7 +33,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy the runtime tree.
+# Copy compiled output and a slim production node_modules.
 COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/backend/package.json ./backend/package.json
@@ -45,9 +44,5 @@ RUN mkdir -p /app/backend/uploads
 
 EXPOSE 4000
 
-# Run the API and the BullMQ worker side-by-side in one container.
-# This is what lets the project deploy on Render's free Web Service tier
-# (Background Workers require a paid plan).
-CMD ["npx", "concurrently", "-k", "-n", "API,WRK", "-c", "magenta,yellow", \
-     "node backend/dist/backend/src/index.js", \
-     "node backend/dist/backend/src/worker.js"]
+# Run API + BullMQ worker in one process tree.
+CMD ["node", "backend/dist/backend/src/start-all.js"]
