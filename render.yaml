@@ -2,7 +2,7 @@
 #
 # Single free Web Service that runs both the Express API and the BullMQ
 # worker inside the same container (Render Background Workers require a
-# paid plan, so we co-locate them via `concurrently`).
+# paid plan, so we co-locate them via start-all.ts).
 #
 # Set MONGODB_URI, REDIS_URL, ANTHROPIC_API_KEY, and FRONTEND_URL in the
 # Render dashboard (or when prompted by the Blueprint sync).
@@ -18,8 +18,6 @@ services:
     dockerContext: .
     healthCheckPath: /health
     envVars:
-      - key: PORT
-        value: "4000"
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI

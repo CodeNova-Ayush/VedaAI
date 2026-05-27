@@ -28,6 +28,14 @@ async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? 4000);
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
   const mongoUri = process.env.MONGODB_URI;
+  console.log('[api] boot:', {
+    port,
+    frontendUrl,
+    hasMongoUri: Boolean(mongoUri),
+    hasRedisUrl: Boolean(process.env.REDIS_URL),
+    hasAnthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+    nodeEnv: process.env.NODE_ENV,
+  });
   if (!mongoUri) throw new Error('MONGODB_URI is not set');
 
   await connectMongoWithRetry(mongoUri);
