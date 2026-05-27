@@ -13,12 +13,17 @@
     "dev:web": "npm run dev --workspace frontend",
     "dev:api": "npm run dev --workspace backend",
     "dev:worker": "npm run worker --workspace backend",
-    "build": "npm run build --workspace backend && npm run build --workspace frontend",
-    "build:web": "npm run build --workspace frontend",
-    "build:api": "npm run build --workspace backend",
-    "lint": "npm run lint --workspace frontend --if-present && npm run lint --workspace backend --if-present",
+    "build": "npm run build --workspace @veda-ai/frontend",
+    "build:web": "npm run build --workspace @veda-ai/frontend",
+    "build:api": "npm run build --workspace @veda-ai/backend",
+    "lint": "npm run lint --workspace @veda-ai/frontend --if-present && npm run lint --workspace @veda-ai/backend --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "start": "concurrently --names 'WEB,API,WRK' --prefix-colors 'cyan,magenta,yellow' 'npm run start --workspace frontend' 'npm run start --workspace backend' 'npm run start:worker --workspace backend'"
+    "start": "next start frontend"
+  },
+  "dependencies": {
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

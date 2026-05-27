@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm install && npm run build --workspace @veda-ai/frontend",
-  "installCommand": "echo 'install handled by buildCommand'",
+  "buildCommand": "npm run build --workspace @veda-ai/frontend",
+  "installCommand": "npm install",
   "framework": "nextjs",
   "outputDirectory": "frontend/.next"
 }
