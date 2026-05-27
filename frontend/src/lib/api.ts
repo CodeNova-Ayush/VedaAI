@@ -5,6 +5,15 @@ import type {
   GeneratedPaper,
   QuestionTypeRow,
 } from '@/types';
+import {
+  isRealBackendReachable,
+  forceMockMode,
+  mockCreateAssignment,
+  mockListAssignments,
+  mockDeleteAssignment,
+  mockGetResult,
+  mockRegenerate,
+} from './mockBackend';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -25,34 +34,92 @@ export interface CreateAssignmentInput {
   additionalInstructions: string;
 }
 
-export async function createAssignment(input: CreateAssignmentInput): Promise<{ assignmentId: string }> {
-  const fd = new FormData();
-  if (input.file) fd.append('file', input.file);
-  fd.append('dueDate', input.dueDate);
-  fd.append('questionTypes', JSON.stringify(input.questionTypes));
-  fd.append('additionalInstructions', input.additionalInstructions);
-  const res = await fetch(`${BASE}/api/assignments`, { method: 'POST', body: fd });
-  return unwrap<{ assignmentId: string }>(res);
+async function tryRealOrFallback<T>(
+  realFn: () => Promise<T>,
+  mockFn: () => T | Promise<T>,
+): Promise<T> {
+  const reachable = await isRealBackendReachable();
+  if (!reachable) return mockFn();
+  try {
+    return await realFn();
+  } catch (err) {
+    if (err instanceof TypeError) {
+      forceMockMode();
+      return mockFn();
+    }
+    throw err;
+  }
+}
+
+export async function createAssignment(
+  input: CreateAssignmentInput,
+): Promise<{ assignmentId: string }> {
+  return tryRealOrFallback(
+    async () => {
+      const fd = new FormData();
+      if (input.file) fd.append('file', input.file);
+      fd.append('dueDate', input.dueDate);
+      fd.append('questionTypes', JSON.stringify(input.questionTypes));
+      fd.append('additionalInstructions', input.additionalInstructions);
+      const res = await fetch(`${BASE}/api/assignments`, { method: 'POST', body: fd });
+      return unwrap<{ assignmentId: string }>(res);
+    },
+    () =>
+      mockCreateAssignment({
+        dueDate: input.dueDate,
+        questionTypes: input.questionTypes,
+        additionalInstructions: input.additionalInstructions,
+        fileName: input.file?.name ?? null,
+      }),
+  );
 }
 
 export async function listAssignments(): Promise<AssignmentSummary[]> {
-  const res = await fetch(`${BASE}/api/assignments`, { cache: 'no-store' });
-  return unwrap<AssignmentSummary[]>(res);
+  return tryRealOrFallback(
+    async () => {
+      const res = await fetch(`${BASE}/api/assignments`, { cache: 'no-store' });
+      return unwrap<AssignmentSummary[]>(res);
+    },
+    () => mockListAssignments(),
+  );
 }
 
 export async function deleteAssignment(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/assignments/${id}`, { method: 'DELETE' });
-  await unwrap<{ id: string }>(res);
+  await tryRealOrFallback(
+    async () => {
+      const res = await fetch(`${BASE}/api/assignments/${id}`, { method: 'DELETE' });
+      await unwrap<{ id: string }>(res);
+      return undefined;
+    },
+    () => {
+      mockDeleteAssignment(id);
+      return undefined;
+    },
+  );
 }
 
 export async function getAssignmentResult(
   id: string,
 ): Promise<{ status: AssignmentStatus; paper?: GeneratedPaper }> {
-  const res = await fetch(`${BASE}/api/assignments/${id}/result`, { cache: 'no-store' });
-  return unwrap<{ status: AssignmentStatus; paper?: GeneratedPaper }>(res);
+  return tryRealOrFallback(
+    async () => {
+      const res = await fetch(`${BASE}/api/assignments/${id}/result`, { cache: 'no-store' });
+      return unwrap<{ status: AssignmentStatus; paper?: GeneratedPaper }>(res);
+    },
+    () => mockGetResult(id),
+  );
 }
 
 export async function regenerateAssignment(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/assignments/${id}/regenerate`, { method: 'POST' });
-  await unwrap<{ assignmentId: string }>(res);
+  await tryRealOrFallback(
+    async () => {
+      const res = await fetch(`${BASE}/api/assignments/${id}/regenerate`, { method: 'POST' });
+      await unwrap<{ assignmentId: string }>(res);
+      return undefined;
+    },
+    () => {
+      mockRegenerate(id);
+      return undefined;
+    },
+  );
 }

@@ -1,40 +1,83 @@
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { notFound, useParams } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { getAssignmentResult } from '@/lib/api';
+import type { GeneratedPaper } from '@/types';
 import DownloadPdfButton from '@/components/DownloadPdfButton';
 import RegenerateButton from '@/components/RegenerateButton';
 
-export const dynamic = 'force-dynamic';
-
-interface Params {
-  params: { id: string };
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export default async function AssignmentOutputPage({ params }: Params): Promise<JSX.Element> {
-  const result = await getAssignmentResult(params.id).catch(() => null);
-  if (!result) notFound();
-  if (result.status !== 'complete' || !result.paper) {
+export default function AssignmentOutputPage(): JSX.Element {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+  const [state, setState] = useState<
+    | { kind: 'loading' }
+    | { kind: 'pending'; status: string }
+    | { kind: 'ready'; paper: GeneratedPaper }
+    | { kind: 'error'; message: string }
+  >({ kind: 'loading' });
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const r = await getAssignmentResult(id);
+        if (!mounted) return;
+        if (r.status === 'complete' && r.paper) setState({ kind: 'ready', paper: r.paper });
+        else setState({ kind: 'pending', status: r.status });
+      } catch (err) {
+        if (mounted)
+          setState({ kind: 'error', message: err instanceof Error ? err.message : 'Failed to load' });
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  if (state.kind === 'loading') {
+    return (
+      <div className="bg-brand-card rounded-card shadow-card p-10 max-w-2xl mx-auto text-center">
+        <Loader2 size={28} className="mx-auto animate-spin text-brand-orange mb-3" />
+        <p className="text-sm text-brand-subtext">Loading paper...</p>
+      </div>
+    );
+  }
+
+  if (state.kind === 'error') {
+    notFound();
+  }
+
+  if (state.kind === 'pending') {
     return (
       <div className="bg-brand-card rounded-card shadow-card p-10 max-w-2xl mx-auto text-center">
         <p className="text-sm">
-          This paper is still {result.status}. Please go back and wait for it to finish.
+          This paper is still {state.status}. Please go back and wait for it to finish.
         </p>
       </div>
     );
   }
 
-  const paper = result.paper;
+  const paper = state.paper;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div className="bg-brand-dark text-white rounded-card p-6 md:p-7">
-        <p className="text-[14px] leading-relaxed font-medium">
+        <p className="text-[14px] leading-relaxed font-semibold">
           Certainly, Lakshya! Here are customized Question Papers for your{' '}
-          <span className="font-semibold">{paper.className}</span>{' '}
-          <span className="font-semibold">{paper.subject}</span> classes:
+          <span className="underline underline-offset-2">
+            {paper.className} {paper.subject}
+          </span>{' '}
+          classes:
         </p>
-        <div className="mt-5 flex items-center gap-2.5">
+        <div className="mt-5 flex items-center gap-2.5 flex-wrap">
           <DownloadPdfButton paper={paper} />
-          <RegenerateButton id={params.id} />
+          <RegenerateButton id={id} />
         </div>
       </div>
 
@@ -91,8 +134,4 @@ export default async function AssignmentOutputPage({ params }: Params): Promise<
       </article>
     </div>
   );
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

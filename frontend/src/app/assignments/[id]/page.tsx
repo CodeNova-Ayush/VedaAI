@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
-import { getSocket, subscribe, unsubscribe } from '@/lib/socket';
+import { subscribeToJob } from '@/lib/socket';
 import { getAssignmentResult, regenerateAssignment } from '@/lib/api';
 
 export default function AssignmentLoadingPage(): JSX.Element {
@@ -16,43 +16,39 @@ export default function AssignmentLoadingPage(): JSX.Element {
 
   useEffect(() => {
     let mounted = true;
-    const socket = getSocket();
+    let teardown: (() => void) | undefined;
 
-    const onProgress = (p: { progress: number; message: string }): void => {
-      if (!mounted) return;
-      setProgress(p.progress);
-      setMessage(p.message);
-    };
-    const onComplete = (): void => {
-      if (!mounted) return;
-      router.replace(`/assignments/${id}/output`);
-    };
-    const onError = (e: { error: string }): void => {
-      if (!mounted) return;
-      setError(e.error);
-    };
+    void (async () => {
+      teardown = await subscribeToJob(id, {
+        onProgress: (p) => {
+          if (!mounted) return;
+          setProgress(p.progress);
+          setMessage(p.message);
+        },
+        onComplete: () => {
+          if (!mounted) return;
+          router.replace(`/assignments/${id}/output`);
+        },
+        onError: (e) => {
+          if (!mounted) return;
+          setError(e.error);
+        },
+      });
 
-    socket.on('connect', () => subscribe(id));
-    if (socket.connected) subscribe(id);
-    socket.on('job:progress', onProgress);
-    socket.on('job:complete', onComplete);
-    socket.on('job:error', onError);
-
-    // In case the job already finished before we subscribed, poll once.
-    void getAssignmentResult(id)
-      .then((r) => {
+      try {
+        const r = await getAssignmentResult(id);
         if (!mounted) return;
         if (r.status === 'complete') router.replace(`/assignments/${id}/output`);
-        else if (r.status === 'failed') setError('Generation previously failed. Try regenerating.');
-      })
-      .catch((e: Error) => mounted && setError(e.message));
+        else if (r.status === 'failed')
+          setError('Generation previously failed. Try regenerating.');
+      } catch (e) {
+        if (mounted) setError(e instanceof Error ? e.message : 'Failed to fetch result');
+      }
+    })();
 
     return () => {
       mounted = false;
-      unsubscribe(id);
-      socket.off('job:progress', onProgress);
-      socket.off('job:complete', onComplete);
-      socket.off('job:error', onError);
+      teardown?.();
     };
   }, [id, router]);
 
