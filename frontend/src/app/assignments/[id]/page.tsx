@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
-import { subscribeToJob } from '@/lib/socket';
-import { getAssignmentResult, regenerateAssignment } from '@/lib/api';
+import { subscribeToJob } from '../../../lib/socket';
+import { getAssignmentResult, regenerateAssignment } from '../../../lib/api';
 
 export default function AssignmentLoadingPage(): JSX.Element {
   const params = useParams<{ id: string }>();

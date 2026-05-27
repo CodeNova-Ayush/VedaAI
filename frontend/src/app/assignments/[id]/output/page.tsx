@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { getAssignmentResult } from '@/lib/api';
-import type { GeneratedPaper } from '@/types';
-import DownloadPdfButton from '@/components/DownloadPdfButton';
-import RegenerateButton from '@/components/RegenerateButton';
+import { getAssignmentResult } from '../../../../lib/api';
+import type { GeneratedPaper } from '../../../../types';
+import DownloadPdfButton from '../../../../components/DownloadPdfButton';
+import RegenerateButton from '../../../../components/RegenerateButton';
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
