@@ -98,7 +98,22 @@ async function processJob(job: Job<PaperJobData>): Promise<void> {
 async function main(): Promise<void> {
   const mongoUri = process.env.MONGODB_URI;
   if (!mongoUri) throw new Error('MONGODB_URI is not set');
-  await connectMongo(mongoUri);
+
+  // Retry Mongo connection a few times on cold start. Atlas free tier can
+  // take a moment to wake up.
+  let lastErr: unknown;
+  for (let i = 0; i < 5; i += 1) {
+    try {
+      await connectMongo(mongoUri);
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.error(`[worker] mongo connection attempt ${i + 1} failed:`, (err as Error).message);
+      await new Promise((r) => setTimeout(r, 3_000 * (i + 1)));
+    }
+  }
+  if (lastErr) throw lastErr;
 
   console.log(
     isLLMAvailable()
